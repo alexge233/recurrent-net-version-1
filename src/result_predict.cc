@@ -7,49 +7,27 @@ Mat
 resultPredict(std::vector<Mat> &x, std::vector<Hl> &hLayers, Smr &smr){
 
     int T = x.size();
-    int mid = (int)(T /2.0);
-    Mat tmp;
     // hidden layer forward
-    std::vector<std::vector<Mat> > acti_l;
-    std::vector<std::vector<Mat> > acti_r;
+    std::vector<std::vector<Mat> > acti;
     std::vector<Mat> tmp_vec;
-    acti_l.push_back(tmp_vec);
-    acti_r.push_back(tmp_vec); 
+    acti.push_back(tmp_vec);
     for(int i = 0; i < T; ++i){
-        acti_r[0].push_back(x[i]);
-        acti_l[0].push_back(x[i]);
-        tmp_vec.push_back(tmp);
+        acti[0].push_back(x[i]);
     }
     for(int i = 1; i <= hiddenConfig.size(); ++i){
         // for each hidden layer
-        acti_l.push_back(tmp_vec);
-        acti_r.push_back(tmp_vec);
-        // from left to right
+        acti.push_back(tmp_vec);
         for(int j = 0; j < T; ++j){
             // for each time slot
-            Mat tmpacti = hLayers[i - 1].U_l * acti_l[i - 1][j];
-            if(j > 0) tmpacti += hLayers[i - 1].W_l * acti_l[i][j - 1];
-            if(i > 1) tmpacti += hLayers[i - 1].U_l * acti_r[i - 1][j];
+            Mat tmpacti = hLayers[i - 1].U * acti[i - 1][j];
+            if(j > 0) tmpacti += hLayers[i - 1].W * acti[i][j - 1];
             tmpacti = ReLU(tmpacti);
             if(hiddenConfig[i - 1].DropoutRate < 1.0) tmpacti = tmpacti.mul(hiddenConfig[i - 1].DropoutRate);
-            tmpacti.copyTo(acti_l[i][j]);
-        }
-        // from right to left
-        for(int j = T - 1; j >= 0; --j){
-            // for each time slot
-            Mat tmpacti = hLayers[i - 1].U_r * acti_r[i - 1][j];
-            if(j < T - 1) tmpacti += hLayers[i - 1].W_r * acti_r[i][j + 1];
-            if(i > 1) tmpacti += hLayers[i - 1].U_r * acti_l[i - 1][j];
-            tmpacti = ReLU(tmpacti);
-            if(hiddenConfig[i - 1].DropoutRate < 1.0) tmpacti = tmpacti.mul(hiddenConfig[i - 1].DropoutRate);
-            tmpacti.copyTo(acti_r[i][j]);
+            acti[i].push_back(tmpacti);
         }
     }
-    tmp_vec.clear();
-    std::vector<Mat>().swap(tmp_vec);
     // softmax layer forward
-    Mat M = smr.W_l * acti_l[acti_l.size() - 1][mid];
-    M += smr.W_r * acti_r[acti_r.size() - 1][mid];
+    Mat M = smr.W * acti[acti.size() - 1][T - 1];
     Mat result = Mat::zeros(1, M.cols, CV_64FC1);
 
     double minValue, maxValue;
@@ -58,10 +36,8 @@ resultPredict(std::vector<Mat> &x, std::vector<Hl> &hLayers, Smr &smr){
         minMaxLoc(M(Rect(i, 0, 1, M.rows)), &minValue, &maxValue, &minLoc, &maxLoc);
         result.ATD(0, i) = (int)maxLoc.y;
     }
-    acti_l.clear();
-    std::vector<std::vector<Mat> >().swap(acti_l);
-    acti_r.clear();
-    std::vector<std::vector<Mat> >().swap(acti_r);
+    acti.clear();
+    std::vector<std::vector<Mat> >().swap(acti);
     return result;
 }
 
@@ -120,4 +96,3 @@ testNetwork(const std::vector<std::vector<int> > &x, std::vector<std::vector<int
     result.release();
     err.release();
 }
-
